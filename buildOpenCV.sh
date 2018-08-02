@@ -2,7 +2,7 @@
 # License: MIT. See license file in root directory
 # Copyright(c) JetsonHacks (2017-2018)
 
-OPENCV_VERSION=3.4.1
+OPENCV_VERSION=master
 # Jetson TX2
 ARCH_BIN=6.2
 # Jetson TX1
@@ -14,6 +14,49 @@ INSTALL_DIR=/usr/local
 # Make sure that you set this to YES
 # Value should be YES or NO
 DOWNLOAD_OPENCV_EXTRAS=NO
+# Whether to install contrib modules
+DOWNLOAD_OPENCV_CONTRIB=YES
+# The branch of the git repository to pull from
+OPENCV_CONTRIB_BRANCH=master
+# Comment out the lines of the modules you want to install
+declare -a OPENCV_CONTRIB_DISABLED_MODULES=(
+"aruco"
+"bgsegm"
+"bioinspired"
+"ccalib"
+"cnn_3dobj"
+"cvv"
+"datasets"
+"dnn_objdetect"
+"dnns_easily_fooled"
+"dpm"
+"face"
+"freetype"
+"fuzzy"
+"hdf"
+"hfs"
+"img_hash"
+"line_descriptor"
+"matlab"
+"optflow"
+"ovis"
+"phase_unwrapping"
+"plot"
+"reg"
+"rgbd"
+"saliency"
+"sfm"
+"stereo"
+"structured_light"
+"surface_matching"
+"text"
+"tracking"
+"xfeatures2d"
+#"ximgproc"
+"xobjdetect"
+"xphoto"
+)
+
 # Source code directory
 OPENCV_SOURCE_DIR=$HOME
 WHEREAMI=$PWD
@@ -62,6 +105,10 @@ if [ $DOWNLOAD_OPENCV_EXTRAS == "YES" ] ; then
  echo "Also installing opencv_extras"
 fi
 
+if [ $DOWNLOAD_OPENCV_CONTRIB == "YES" ] ; then
+ echo "Also installing opencv_contrib"
+fi
+
 # Repository setup
 sudo apt-add-repository universe
 sudo apt-get update
@@ -93,7 +140,7 @@ sudo apt-get install -y \
 
 # https://devtalk.nvidia.com/default/topic/1007290/jetson-tx2/building-opencv-with-opengl-support-/post/5141945/#5141945
 cd /usr/local/cuda/include
-sudo patch -N cuda_gl_interop.h $WHEREAMI'/patches/OpenGLHeader.patch' 
+sudo patch -N cuda_gl_interop.h $WHEREAMI'/patches/OpenGLHeader.patch'
 # Clean up the OpenGL tegra libs that usually get crushed
 cd /usr/lib/aarch64-linux-gnu/
 sudo ln -sf tegra/libGL.so libGL.so
@@ -104,7 +151,7 @@ sudo apt-get install -y python-dev python-numpy python-py python-pytest
 sudo apt-get install -y python3-dev python3-numpy python3-py python3-pytest
 
 # GStreamer support
-sudo apt-get install -y libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev 
+sudo apt-get install -y libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 
 cd $OPENCV_SOURCE_DIR
 git clone https://github.com/opencv/opencv.git
@@ -126,8 +173,22 @@ if [ $DOWNLOAD_OPENCV_EXTRAS == "YES" ] ; then
  git checkout -b v${OPENCV_VERSION} ${OPENCV_VERSION}
 fi
 
+if [ $DOWNLOAD_OPENCV_CONTRIB == "YES" ] ; then
+ cd $OPENCV_SOURCE_DIR
+ echo "Insalling opencv_contrib"
+ git clone https://github.com/opencv/opencv_contrib
+ cd opencv_contrib
+ git checkout -b ${OPENCV_CONTRIB_BRANCH}
+ OPENCV_CONTRIB_CMAKE_ARG="-D OPENCV_EXTRA_MODULES_PATH=${OPENCV_SOURCE_DIR}/opencv_contrib/modules"
+ for i in "${OPENCV_CONTRIB_DISABLED_MODULES[@]}"
+  do
+   OPENCV_CONTRIB_CMAKE_ARG+=" -D BUILD_opencv_${i}=OFF"
+  done
+  echo $OPENCV_CONTRIB_CMAKE_ARG
+fi
+
 cd $OPENCV_SOURCE_DIR/opencv
-mkdir build
+mkdir -p build
 cd build
 
 # Here are some options to install source examples and tests
@@ -151,6 +212,7 @@ time cmake -D CMAKE_BUILD_TYPE=RELEASE \
       -D WITH_GSTREAMER_0_10=OFF \
       -D WITH_QT=ON \
       -D WITH_OPENGL=ON \
+      $OPENCV_CONTRIB_CMAKE_ARG \
       ../
 
 if [ $? -eq 0 ] ; then
